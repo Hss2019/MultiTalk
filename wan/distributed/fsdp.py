@@ -6,7 +6,10 @@ import torch
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import MixedPrecision, ShardingStrategy
 from torch.distributed.fsdp.wrap import lambda_auto_wrap_policy
+from torch.distributed.fsdp.cpu_offload import CPUOffload
 from torch.distributed.utils import _free_storage
+
+__all__ = ['shard_model']
 
 
 def shard_model(
@@ -19,18 +22,23 @@ def shard_model(
     sharding_strategy=ShardingStrategy.FULL_SHARD,
     sync_module_states=True,
 ):
+    # This policy defines which modules to wrap with FSDP.
+    # Here, we wrap the 'blocks' of the model.
+    auto_wrap_policy = partial(
+        lambda_auto_wrap_policy, lambda_fn=lambda m: m in model.blocks
+    )
+
+    # Configure FSDP with CPU Offloading enabled.
+    # This is the key to solving the initialization OOM.
     model = FSDP(
         module=model,
         process_group=process_group,
         sharding_strategy=sharding_strategy,
-        auto_wrap_policy=partial(
-            lambda_auto_wrap_policy, lambda_fn=lambda m: m in model.blocks),
-        # mixed_precision=MixedPrecision(
-        #     param_dtype=param_dtype,
-        #     reduce_dtype=reduce_dtype,
-        #     buffer_dtype=buffer_dtype),
+        auto_wrap_policy=auto_wrap_policy,
+        cpu_offload=CPUOffload(offload_params=True),
         device_id=device_id,
-        sync_module_states=sync_module_states)
+        sync_module_states=sync_module_states,
+    )
     return model
 
 

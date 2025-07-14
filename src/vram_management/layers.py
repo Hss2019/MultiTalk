@@ -87,8 +87,11 @@ class AutoWrappedQLinear(qlinear.QLinear):
                 bias=module.bias is not None,
                 device=offload_device,
             )
-        self.weight = module.weight
-        self.bias = module.bias
+        self.weight = torch.nn.Parameter(module.weight)
+        if module.bias is not None:
+            self.bias = torch.nn.Parameter(module.bias)
+        else:
+            self.bias = None
         self.offload_device = offload_device
 
         self.onload_device = onload_device
@@ -144,8 +147,11 @@ class AutoWrappedLinear(torch.nn.Linear):
                 dtype=offload_dtype,
                 device=offload_device,
             )
-        self.weight = module.weight
-        self.bias = module.bias
+        self.weight = torch.nn.Parameter(module.weight)
+        if module.bias is not None:
+            self.bias = torch.nn.Parameter(module.bias)
+        else:
+            self.bias = None
         self.offload_dtype = offload_dtype
         self.offload_device = offload_device
         self.onload_dtype = onload_dtype
