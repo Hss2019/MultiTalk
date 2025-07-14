@@ -424,6 +424,7 @@ def _t5(name,
         tokenizer_kwargs={},
         dtype=torch.float32,
         device='cpu',
+        t5_fsdp=False,
         **kwargs):
     # sanity check
     assert not (encoder_only and decoder_only)
@@ -442,12 +443,14 @@ def _t5(name,
     else:
         model_cls = T5Model
 
-    # init model
-    with torch.device(device):
+    # init model on CPU if FSDP is used to prevent errors
+    init_device = 'cpu' if t5_fsdp else device
+    with torch.device(init_device):
         model = model_cls(**kwargs)
 
-    # set device
-    model = model.to(dtype=dtype, device=device)
+    # set device only if not using FSDP
+    if not t5_fsdp:
+        model = model.to(dtype=dtype, device=device)
 
     # init tokenizer
     if return_tokenizer:
@@ -513,14 +516,13 @@ class T5EncoderModel:
                 encoder_only=True,
                 return_tokenizer=False,
                 dtype=dtype,
-                device=device).eval().requires_grad_(False)
+                device=device,
+                t5_fsdp=(shard_fn is not None)).eval().requires_grad_(False)
             model.load_state_dict(torch.load(checkpoint_path, map_location='cpu'))
         self.model = model
         self.model.eval().requires_grad_(False)
         if shard_fn is not None:
             self.model = shard_fn(self.model, sync_module_states=False)
-        else:
-            self.model.to(self.device)
         # init tokenizer
         self.tokenizer = HuggingfaceTokenizer(
             name=tokenizer_path, seq_len=text_len, clean='whitespace')

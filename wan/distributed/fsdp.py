@@ -3,10 +3,13 @@ import gc
 from functools import partial
 
 import torch
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp import MixedPrecision, ShardingStrategy
+from torch.distributed.fsdp import (
+    FullyShardedDataParallel as FSDP,
+    MixedPrecision,
+    ShardingStrategy,
+    CPUOffload,
+)
 from torch.distributed.fsdp.wrap import lambda_auto_wrap_policy
-from torch.distributed.fsdp.cpu_offload import CPUOffload
 from torch.distributed.utils import _free_storage
 
 __all__ = ['shard_model']
