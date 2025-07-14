@@ -21,7 +21,7 @@ from wan.configs import SIZE_CONFIGS, SUPPORTED_SIZES, WAN_CONFIGS
 from wan.utils.utils import cache_image, cache_video, str2bool
 from wan.utils.multitalk_utils import save_video_ffmpeg
 from kokoro import KPipeline
-from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2ForCTC
+from transformers import Wav2Vec2FeatureExtractor
 from src.audio_analysis.wav2vec2 import Wav2Vec2Model
 
 import librosa
@@ -251,14 +251,10 @@ def _parse_args():
 
     return args
 
-def custom_init(device, wav2vec):
+def custom_init(device, wav2vec):    
+    audio_encoder = Wav2Vec2Model.from_pretrained(wav2vec, local_files_only=True).to(device)
+    audio_encoder.feature_extractor._freeze_parameters()
     wav2vec_feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(wav2vec, local_files_only=True)
-    audio_encoder = Wav2Vec2ForCTC.from_pretrained(
-        wav2vec,
-        local_files_only=True,
-        attn_implementation="eager"
-    ).to(device)
-    audio_encoder.eval()
     return wav2vec_feature_extractor, audio_encoder
 
 def loudness_norm(audio_array, sr=16000, lufs=-23):
@@ -314,7 +310,7 @@ def get_embedding(speech_array, wav2vec_feature_extractor, audio_encoder, sr=160
 
     # audio encoder
     with torch.no_grad():
-        embeddings = audio_encoder(audio_feature, output_hidden_states=True)
+        embeddings = audio_encoder(audio_feature, seq_len=int(video_length), output_hidden_states=True)
 
     if len(embeddings) == 0:
         print("Fail to extract audio embedding")
@@ -534,8 +530,7 @@ def generate(args):
     with open(args.input_json, 'r', encoding='utf-8') as f:
         input_data = json.load(f)
         
-        wav2vec_feature_extractor, audio_encoder = custom_init('cpu', args.wav2vec_dir)
-        
+        wav2vec_feature_extractor, audio_encoder= custom_init('cpu', args.wav2vec_dir)
         args.audio_save_dir = os.path.join(args.audio_save_dir, input_data['cond_image'].split('/')[-1].split('.')[0])
         os.makedirs(args.audio_save_dir,exist_ok=True)
         
